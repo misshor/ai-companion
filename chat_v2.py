@@ -20,7 +20,11 @@ def main():
             break
         history.append({"role":"user","content":ask})
         memory.save("user",ask)
-        reply = brain.ask_ai([{"role":"system","content":brain.SYSTEM}] + history)
+        # reply = brain.ask_ai([{"role":"system","content":brain.SYSTEM}] + history[-10:])
+        tail = history[-10:]
+        if tail and tail[0]["role"] == "assistant":
+            tail = tail[1:]
+        reply = brain.ask_ai([{"role": "system", "content": brain.SYSTEM}] + tail)
         history.append({"role":"assistant","content":reply})
         memory.save("assistant",reply)
         print("小星:" + reply)
