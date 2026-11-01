@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 import brain
 import memory
+from fastapi import HTTPException
 
 app = FastAPI()
 
@@ -32,12 +33,16 @@ def chat(data: ChatIn):
     if history is None:
         history = memory.load(data.user_id)[-20:]
         sessions[data.user_id] = history
+        history.append({"role": "user", "content": data.message})
+    try:
+        reply = brain.ask_ai([{"role": "system", "content": brain.SYSTEM}] + history[-10:])
+    except Exception:
+        history.pop()
+        raise HTTPException(status_code=503, detail="小星暂时不在，稍后再试")
 
-    history.append({"role":"user","content":data.message})
-    memory.save(data.user_id,"user",data.message)
-    reply = brain.ask_ai([{"role":"system","content":brain.SYSTEM}] + history[-10:])
-    history.append({"role":"assistant","content":reply})
-    memory.save(data.user_id,"assistant",reply)
+    history.append({"role": "assistant", "content": reply})
+    memory.save(data.user_id, "user", data.message)
+    memory.save(data.user_id, "assistant", reply)
     sessions[data.user_id] = history[-20:]
     # TODO 2：调 brain.ask_ai(上面那个列表)，拿回复
 
