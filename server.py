@@ -11,7 +11,7 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 import brain
-import memory
+import db_memory as memory
 from fastapi import HTTPException
 
 app = FastAPI()
