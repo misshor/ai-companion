@@ -13,6 +13,7 @@ from pydantic import BaseModel
 import brain
 import db_memory as memory
 from fastapi import HTTPException
+from datetime import datetime
 
 app = FastAPI()
 
@@ -49,6 +50,16 @@ def chat(data: ChatIn):
     if history is None:
         history = memory.load(data.user_id)[-20:]
         sessions[data.user_id] = history
+    t = memory.last_time(data.user_id)
+    hint = ""
+    if t:
+        last = datetime.strptime(t, "%Y-%m-%d %H:%M")
+        gap = datetime.now() - last
+        if gap.total_seconds() < 300:
+            hint = "用户刚走开几分钟，语气随意一点。"
+        elif gap.days >= 3:
+            hint = "用户已经3天以上没来了，开头先问候一句 [好久没见]。"
+
     history.append({"role": "user", "content": data.message})
     if any(w in data.message for w in CRISIS_WORDS):
         reply = CRISIS_REPLY
@@ -57,14 +68,19 @@ def chat(data: ChatIn):
         memory.save(data.user_id,"assistant",reply)
         sessions[data.user_id] = history[-20:]
         return {"reply": reply,"crisis":True}
+
     system_now = brain.SYSTEM
     if any(w in data.message for w in WEAK_WORDS):
-        system_now = brain.SYSTEM + "（注意：用户情绪可能很危险，这一轮不要追问细节，先确认他此刻是否安全。）"
+        system_now = system_now + "（注意：用户情绪可能很危险，这一轮不要追问细节，先确认他此刻是否安全。）"
+    if hint:
+        system_now = system_now + "("+hint+")"
     try:
         reply = brain.ask_ai([{"role": "system", "content": system_now}] + history[-10:])
     except Exception:
         history.pop()
         raise HTTPException(status_code=503, detail="小星暂时不在，稍后再试")
+
+
 
     history.append({"role": "assistant", "content": reply})
     memory.save(data.user_id, "user", data.message)
